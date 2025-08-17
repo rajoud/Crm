@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CRM عقارات</title>
+<style>
+*{box-sizing:border-box;}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;background:#f6f7fb;direction:rtl;}
+.wrap{max-width:1200px;margin:0 auto;padding:16px;}
+.card{background:#fff;border:1px solid #eee;border-radius:14px;padding:16px;box-shadow:0 4px 10px rgba(0,0,0,0.04);}
+.row{display:flex;gap:12px;}
+.row.col{flex-direction:column;}
+.grid{display:grid;gap:12px;}
+.grid2{grid-template-columns:1fr 1fr;}
+.grid3{grid-template-columns:repeat(3,1fr);}
+@media(max-width:800px){.grid2,.grid3{grid-template-columns:1fr;}}
+.btn{border:1px solid #ddd;background:#0ea5e9;color:#fff;padding:10px 14px;border-radius:10px;cursor:pointer;font-weight:600;}
+.btn.sec{background:#64748b;}
+.btn.dan{background:#ef4444;}
+.btn.ghost{background:#fff;color:#0f172a;border-color:#cbd5e1;}
+.field{width:100%;border:1px solid #cbd5e1;border-radius:10px;padding:10px 12px;}
+.tag{display:inline-block;background:#f1f5f9;color:#0f172a;border:1px solid #e2e8f0;border-radius:999px;padding:4px 10px;font-size:12px;}
+.muted{color:#475569;font-size:13px;}
+.table{width:100%;border-collapse:collapse;}
+.table th,.table td{padding:10px;border-bottom:1px solid #eee;text-align:right;}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;}
+.tab{padding:10px 12px;border-radius:10px;border:1px solid #cbd5e1;background:#fff;cursor:pointer;font-weight:600;}
+.tab.active{background:#0ea5e9;color:#fff;border-color:#0ea5e9;}
+.stat{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:12px;text-align:center;}
+.stat .num{font-size:22px;font-weight:800;}
+header.top{position:sticky;top:0;background:#ffffffd9;backdrop-filter:saturate(180%) blur(6px);border-bottom:1px solid #e2e8f0;z-index:10;}
+.funnel{display:flex;gap:10px;flex-wrap:wrap;}
+.funnel .stage{flex:1;background:#e0f2fe;padding:12px;border-radius:12px;text-align:center;}
+.funnel .stage.completed{background:#a7f3d0;}
+.funnel .stage.in-progress{background:#fde68a;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+<script type="text/babel">
+
+// === حسابات جاهزة للتجربة ===
+const users = [
+  {id:1,username:\'admin\',password:\'12345\',role:\'admin\',name:\'المدير\'},
+  {id:2,username:\'sales1\',password:\'1111\',role:\'sales\',name:\'مندوب 1\'}
+];
+
+const App = () => {
+  const load=(k,f=null)=>{try{const r=localStorage.getItem(k);return r?JSON.parse(r):f}catch{return f}};
+  const save=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
+  const [currentUser,setCurrentUser]=React.useState(()=>load(\'currentUser\',null));
+  const [loginData,setLoginData]=React.useState({username:\'\',password:\'\'});
+  const isLoggedIn=!!currentUser;
+  const isAdmin=currentUser?.role===\'admin\';
+  const myUsername=currentUser?.username;
+
+  const [activeTab,setActiveTab]=React.useState(\'dashboard\');
+  const [search,setSearch]=React.useState(\'\');
+
+  const [clients,setClients]=React.useState(()=>load(\'clients\',[]));
+  const [properties,setProperties]=React.useState(()=>load(\'properties\',[]));
+  const [tasks,setTasks]=React.useState(()=>load(\'tasks\',[]));
+
+  React.useEffect(()=>save(\'clients\',clients),[clients]);
+  React.useEffect(()=>save(\'properties\',properties),[properties]);
+  React.useEffect(()=>save(\'tasks\',tasks),[tasks]);
+  React.useEffect(()=>save(\'currentUser\',currentUser),[currentUser]);
+
+  const handleLogin=()=>{
+    const f=users.find(u=>u.username===loginData.username && u.password===loginData.password);
+    if(f){setCurrentUser(f);setActiveTab(\'dashboard\');alert(\'✅ تم تسجيل الدخول\');}
+    else{alert(\'❌ اسم المستخدم أو كلمة المرور خاطئ\');}
+  };
+  const handleLogout=()=>{setCurrentUser(null);alert(\'🚪 تم تسجيل الخروج\');};
+
+  const visibleClients=isAdmin?clients:clients.filter(c=>c.createdBy===myUsername);
+  const visibleProperties=isAdmin?properties:properties.filter(p=>p.createdBy===myUsername);
+  const visibleTasks=isAdmin?tasks:tasks.filter(t=>t.createdBy===myUsername);
+
+  const norm=s=> (s||\'\').toString().toLowerCase();
+  const s=norm(search);
+  const clientsFiltered=visibleClients.filter(c=>norm(c.name).includes(s) || norm(c.phone).includes(s));
+  const propertiesFiltered=visibleProperties.filter(p=>norm(p.title).includes(s) || norm(p.area).includes(s));
+  const tasksFiltered=visibleTasks.filter(t=>norm(t.title).includes(s));
+
+  // ===== Forms =====
+  const [clientForm,setClientForm]=React.useState({name:\'\',phone:\'\',status:\'نشط\',stage:\'جديد\'});
+  const addClient=()=>{
+    if(!clientForm.name||!clientForm.phone)return alert(\'الاسم والهاتف مطلوبان\');
+    const item={id:Date.now(),...clientForm,createdBy:myUsername};
+    setClients(arr=>[item,...arr]);
+    setClientForm({name:\'\',phone:\'\',status:\'نشط\',stage:\'جديد\'});
+  };
+
+  const editClient=id=>{
+    const c=clients.find(x=>x.id===id);if(!c)return;if(!isAdmin&&c.createdBy!==myUsername)return alert(\'ليست لديك صلاحية\');
+    const name=prompt(\'اسم العميل\',c.name)??c.name;
+    const phone=prompt(\'الهاتف\',c.phone)??c.phone;
+    const status=prompt(\'الحالة\',c.status)??c.status;
+    const stage=prompt(\'مرحلة العميل\',c.stage)??c.stage;
+    setClients(arr=>arr.map(x=>x.id===id?{...x,name,phone,status,stage}:x));
+  };
+  const deleteClient=id=>{const c=clients.find(x=>x.id===id);if(!c)return;if(!isAdmin&&c.createdBy!==myUsername)return alert(\'لا تملك صلاحية\');if(!confirm(\'تأكيد الحذف؟\'))return;setClients(arr=>arr.filter(x=>x.id!==id));};
+
+  const [propertyForm,setPropertyForm]=React.useState({title:\'\',area:\'\',price:\'\',status:\'متاحة\'});
+  const addProperty=()=>{if(!propertyForm.title||!propertyForm.price)return alert(\'العنوان والسعر مطلوبان\');const item={id:Date.now(),...propertyForm,createdBy:myUsername};setProperties(arr=>[item,...arr]);setPropertyForm({title:\'\',area:\'\',price:\'\',status:\'متاحة\'});};
+  const editProperty=id=>{const p=properties.find(x=>x.id===id);if(!p)return;if(!isAdmin&&p.createdBy!==myUsername)return alert(\'ليست لديك صلاحية\');const title=prompt(\'عنوان العقار\',p.title)??p.title;const area=prompt(\'المنطقة\',p.area||\'\')??p.area;const price=prompt(\'السعر\',p.price||\'\')??p.price;const status=prompt(\'الحالة\',p.status||\'متاحة\')??p.status;setProperties(arr=>arr.map(x=>x.id===id?{...x,title,area,price,status}:x));};
+  const deleteProperty=id=>{const p=properties.find(x=>x.id===id);if(!p)return;if(!isAdmin&&p.createdBy!==myUsername)return alert(\'لا تملك صلاحية\');if(!confirm(\'تأكيد حذف العقار؟\'))return;setProperties(arr=>arr.filter(x=>x.id!==id));};
+
+  const [taskForm,setTaskForm]=React.useState({title:\'\',client:\'\',dueDate:\'\',status:\'معلقة\'});
+  const addTask=()=>{if(!taskForm.title)return alert(\'العنوان مطلوب\');const item={id:Date.now(),...taskForm,createdBy:myUsername};setTasks(arr=>[item,...arr]);setTaskForm({title:\'\',client:\'\',dueDate:\'\',status:\'معلقة\'});};
+  const editTask=id=>{const t=tasks.find(x=>x.id===id);if(!t)return;if(!isAdmin&&t.createdBy!==myUsername)return alert(\'ليست لديك صلاحية\');const title=prompt(\'عنوان المهمة\',t.title)??t.title;const client=prompt(\'العميل\',t.client||\'\')??t.client;const dueDate=prompt(\'تاريخ الاستحقاق\',t.dueDate||\'\')??t.dueDate;const status=prompt(\'الحالة\',t.status||\'معلقة\')??t.status;setTasks(arr=>arr.map(x=>x.id===id?{...x,title,client,dueDate,status}:x));};
+  const deleteTask=id=>{const t=tasks.find(x=>x.id===id);if(!t)return;if(!isAdmin&&t.createdBy!==myUsername)return alert(\'لا تملك صلاحية\');if(!confirm(\'تأكيد الحذف؟\'))return setTasks(arr=>arr.filter(x=>x.id!==id));};
+
+  // ===== Dashboard Stats =====
+  const myClients=visibleClients.length;
+  const myProps=visibleProperties.length;
+  const myTasks=visibleTasks.length;
+  const soldCount=visibleProperties.filter(p=>(p.status||\'\').includes(\'تم البيع\')).length;
+
+  // ===== Funnel Stages =====
+  const stages=[\'جديد\',\'مهتم\',\'متابعة\',\'تم البيع\'];
+  const funnelCounts=stages.map(stage=>visibleClients.filter(c=>c.stage===stage).length);
+
+  if(!isLoggedIn){
+    return <div className="wrap" style={{minHeight:\'100vh\',display:\'grid\',placeItems:\'center\'}}>
+      <div className="card" style={{width:420,maxWidth:\'100%\'}}>
+        <h2 style={{marginTop:0}}>🔑 تسجيل الدخول</h2>
+        <div className="row col" style={{gap:10}}>
+          <input className="field" placeholder="اسم المستخدم" value={loginData.username} onChange={e=>setLoginData({...loginData,username:e.target.value})}/>
+          <input className="field" type="password" placeholder="كلمة المرور" value={loginData.password} onChange={e=>setLoginData({...loginData,password:e.target.value})}/>
+          <button className="btn" onClick={handleLogin}>دخول</button>
+          <div className="muted">حسابات جاهزة للتجربة:
+            {users.map(u=><div key={u.id}>{u.username} / {u.password} ({u.role})</div>)}
+          </div>
+        </div>
+      </div>
+    </div>;
+  }
+
+  return <div className="wrap">
+    <header className="top row" style={{justifyContent:\'space-between\',alignItems:\'center\',padding:\'8px 0\'}}>
+      <h2>CRM عقارات</h2>
+      <div className="row" style={{gap:6,flexWrap:\'wrap\'}}>
+        <input className="field" placeholder="بحث..." value={search} onChange={e=>setSearch(e.target.value)} style={{minWidth:150}}/>
+        <button className={`tab ${activeTab===\'dashboard\'?\'active\':\'\'}`} onClick={()=>setActiveTab(\'dashboard\')}>لوحة التحكم</button>
+        <button className={`tab ${activeTab===\'clients\'?\'active\':\'\'}`} onClick={()=>setActiveTab(\'clients\')}>العملاء</button>
+        <button className={`tab ${activeTab===\'properties\'?\'active\':\'\'}`} onClick={()=>setActiveTab(\'properties\')}>العقارات</button>
+        <button className={`tab ${activeTab===\'tasks\'?\'active\':\'\'}`} onClick={()=>setActiveTab(\'tasks\')}>المهام</button>
+        <button className="btn sec" onClick={handleLogout}>خروج</button>
+      </div>
+    </header>
+
+    {activeTab===\'dashboard\' && <div>
+      <div className="grid grid3" style={{marginTop:16, gap:16}}>
+        <div className="stat"><div>إجمالي العملاء</div><div className="num">{myClients}</div></div>
+        <div className="stat"><div>العقارات المتاحة</div><div className="num">{visibleProperties.filter(p=>(p.status||\'\')===\'متاحة\').length}</div></div>
+        <div className="stat"><div>المهام المفتوحة</div><div className="num">{visibleTasks.filter(t=>(t.status||\'معلقة\')!==\'مكتملة\').length}</div></div>
+        <div className="stat"><div>المبيعات</div><div className="num">{soldCount}</div></div>
+      </div>
+
+      <div className="card" style={{marginTop:16}}>
+        <h3>🎯 سيلز فانل العملاء</h3>
+        <div className="funnel">
+          {stages.map((stage,i)=><div key={i} className={`stage ${stage===\'تم البيع\'?\'completed\':stage===\'مهتم\'?\'in-progress\':\'\'}`}>
+            {stage}: {funnelCounts[i]}
+          </div>)}
+        </div>
+      </div>
+    </div>}
+
+    {activeTab===\'clients\' && <div className="card" style={{marginTop:16}}>
+      <h3>العملاء</h3>
+      <div className="row col" style={{gap:8}}>
+        <input className="field" placeholder="اسم العميل" value={clientForm.name} onChange={e=>setClientForm({...clientForm,name:e.target.value})}/>
+        <input className="field" placeholder="الهاتف" value={clientForm.phone} onChange={e=>setClientForm({...clientForm,phone:e.target.value})}/>
+        <select className="field" value={clientForm.stage} onChange={e=>setClientForm({...clientForm,stage:e.target.value})}>
+          <option>جديد</option><option>مهتم</option><option>متابعة</option><option>تم البيع</option>
+        </select>
+        <button className="btn" onClick={addClient}>إضافة عميل</button>
+      </div>
+      <table className="table">
+        <thead><tr><th>الاسم</th><th>الهاتف</th><th>المرحلة</th><th>الحالة</th><th>إجراءات</th></tr></thead>
+        <tbody>
+          {clientsFiltered.map(c=><tr key={c.id}>
+            <td>{c.name}</td><td>{c.phone}</td><td>{c.stage}</td><td>{c.status}</td>
+            <td>
+              <button className="btn ghost" onClick={()=>editClient(c.id)}>تعديل</button>
+              <button className="btn dan" onClick={()=>deleteClient(c.id)}>حذف</button>
+            </td>
+          </tr>)}
+        </tbody>
+      </table>
+    </div>}
+
+    {activeTab===\'properties\' && <div className="card" style={{marginTop:16}}>
+      <h3>العقارات</h3>
+      <div className="row col" style={{gap:8}}>
+        <input className="field" placeholder="عنوان العقار" value={propertyForm.title} onChange={e=>setPropertyForm({...propertyForm,title:e.target.value})}/>
+        <input className="field" placeholder="المنطقة" value={propertyForm.area} onChange={e=>setPropertyForm({...propertyForm,area:e.target.value})}/>
+        <input className="field" placeholder="السعر" value={propertyForm.price} onChange={e=>setPropertyForm({...propertyForm,price:e.target.value})}/>
+        <button className="btn" onClick={addProperty}>إضافة عقار</button>
+      </div>
+      <table className="table">
+        <thead><tr><th>العنوان</th><th>المنطقة</th><th>السعر</th><th>الحالة</th><th>إجراءات</th></tr></thead>
+        <tbody>
+          {propertiesFiltered.map(p=><tr key={p.id}>
+            <td>{p.title}</td><td>{p.area}</td><td>{p.price}</td><td>{p.status}</td>
+            <td>
+              <button className="btn ghost" onClick={()=>editProperty(p.id)}>تعديل</button>
+              <button className="btn dan" onClick={()=>deleteProperty(p.id)}>حذف</button>
+            </td>
+          </tr>)}
+        </tbody>
+      </table>
+    </div>}
+
+    {activeTab===\'tasks\' && <div className="card" style={{marginTop:16}}>
+      <h3>المهام</h3>
+      <div className="row col" style={{gap:8}}>
+        <input className="field" placeholder="عنوان المهمة" value={taskForm.title} onChange={e=>setTaskForm({...taskForm,title:e.target.value})}/>
+        <input className="field" placeholder="العميل" value={taskForm.client} onChange={e=>setTaskForm({...taskForm,client:e.target.value})}/>
+        <input className="field" type="date" value={taskForm.dueDate} onChange={e=>setTaskForm({...taskForm,dueDate:e.target.value})}/>
+        <select className="field" value={taskForm.status} onChange={e=>setTaskForm({...taskForm,status:e.target.value})}>
+          <option>معلقة</option><option>مكتملة</option>
+        </select>
+        <button className="btn" onClick={addTask}>إضافة مهمة</button>
+      </div>
+      <table className="table">
+        <thead><tr><th>العنوان</th><th>العميل</th><th>تاريخ الاستحقاق</th><th>الحالة</th><th>إجراءات</th></tr></thead>
+        <tbody>
+          {tasksFiltered.map(t=><tr key={t.id}>
+            <td>{t.title}</td><td>{t.client}</td><td>{t.dueDate}</td><td>{t.status}</td>
+            <td>
+              <button className="btn ghost" onClick={()=>editTask(t.id)}>تعديل</button>
+              <button className="btn dan" onClick={()=>deleteTask(t.id)}>حذف</button>
+            </td>
+          </tr>)}
+        </tbody>
+      </table>
+    </div>}
+
+  </div>;
+};
+
+ReactDOM.render(<App />,document.getElementById("root"));
+
+</script>
+</body>
+</html>
+
